@@ -240,23 +240,108 @@ async function blobToBase64(blob) {
 }
 
 async function saveToAndroid(blob, filename) {
-    // 通过 Capacitor 提供的 Filesystem 把图片写到外部下载目录
-    if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Filesystem) {
+    console.log('[保存] 开始 Android 保存流程，文件名:', filename, '大小:', blob.size);
+    
+    // 检查 Capacitor 环境
+    if (!window.Capacitor) {
+        console.warn('[保存] window.Capacitor 不存在');
         return false;
     }
+    
+    console.log('[保存] Capacitor 已加载:', {
+        isNativePlatform: window.Capacitor.isNativePlatform?.(),
+        platform: window.Capacitor.getPlatform?.(),
+        Plugins: !!window.Capacitor.Plugins
+    });
+    
+    // 检查 Filesystem 插件
+    const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+    if (!Filesystem) {
+        console.error('[保存] Filesystem 插件未找到！请确保已执行 npx cap sync');
+        alert('保存失败：Filesystem 插件未加载\n请联系开发者检查 Capacitor 配置');
+        return false;
+    }
+    
+    console.log('[保存] Filesystem 插件已加载');
+    
     try {
-        const { Filesystem, Directory } = window.Capacitor.Plugins;
         const base64 = await blobToBase64(blob);
-        const result = await Filesystem.writeFile({
-            path: `Pictures/CameraWatermark/${filename}`,
-            data: base64,
-            directory: Directory.ExternalStorage,
-            recursive: true
-        });
-        alert('已保存到：' + (result?.uri || `Pictures/CameraWatermark/${filename}`));
-        return true;
+        console.log('[保存] Base64 转换完成，长度:', base64.length);
+        
+        // 修复关键点：
+        // 1) Directory.ExternalStorage 在 Android 10+ 需要 WRITE_EXTERNAL_STORAGE 权限
+        //    且在 Android 11+ 的 scoped storage 下可能完全不可用
+        // 2) Directory.Documents 是应用专属目录，无需权限，推荐使用
+        // 3) 尝试多个目录，按优先级回退
+        
+        const strategies = [
+            {
+                name: 'Documents',
+                dir: 'DOCUMENTS',
+                path: `CameraWatermark/${filename}`
+            },
+            {
+                name: 'Data',
+                dir: 'DATA',
+                path: `CameraWatermark/${filename}`
+            },
+            {
+                name: 'Cache',
+                dir: 'CACHE',
+                path: filename
+            }
+        ];
+        
+        let lastError = null;
+        
+        for (const strategy of strategies) {
+            try {
+                console.log(`[保存] 尝试策略: ${strategy.name}, 目录: ${strategy.dir}, 路径: ${strategy.path}`);
+                
+                const result = await Filesystem.writeFile({
+                    path: strategy.path,
+                    data: base64,
+                    directory: strategy.dir,
+                    recursive: true
+                });
+                
+                console.log('[保存] 保存成功！', result);
+                
+                // 成功后给用户明确提示
+                const uri = result?.uri || '';
+                let msg = `✓ 图片已保存\n\n`;
+                
+                if (uri) {
+                    msg += `路径: ${uri}\n\n`;
+                } else {
+                    msg += `目录: ${strategy.name}\n`;
+                    msg += `文件: ${strategy.path}\n\n`;
+                }
+                
+                if (strategy.name === 'Cache') {
+                    msg += `注意：保存在缓存目录，可能会被系统清理。\n建议使用文件管理器移动到相册。`;
+                } else {
+                    msg += `请在文件管理器的 "${strategy.name}/CameraWatermark" 目录查看。`;
+                }
+                
+                alert(msg);
+                return true;
+                
+            } catch (e) {
+                console.warn(`[保存] 策略 ${strategy.name} 失败:`, e);
+                lastError = e;
+                // 继续尝试下一个策略
+            }
+        }
+        
+        // 所有策略都失败
+        console.error('[保存] 所有保存策略都失败了，最后错误:', lastError);
+        alert(`保存失败\n\n错误: ${lastError?.message || lastError}\n\n建议：\n1. 检查存储空间是否充足\n2. 尝试重启应用\n3. 使用截图功能保存预览图`);
+        return false;
+        
     } catch (e) {
-        console.warn('Capacitor 保存失败', e);
+        console.error('[保存] 保存过程异常:', e);
+        alert(`保存失败：${e?.message || e}`);
         return false;
     }
 }
