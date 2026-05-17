@@ -26,7 +26,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       # ------------------------------------------------------------
       # 3. 安装 JDK 17（Android Gradle Plugin 8 要求）
@@ -42,6 +41,8 @@ jobs:
       # ------------------------------------------------------------
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
 
       # ------------------------------------------------------------
       # 5. 下载 exifr 库到 www/vendor（保证 APK 离线可用）
@@ -56,7 +57,7 @@ jobs:
       # 6. 安装 npm 依赖
       # ------------------------------------------------------------
       - name: Install npm dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       # ------------------------------------------------------------
       # 7. 添加 Android 平台（首次构建会自动生成 android/ 目录）
