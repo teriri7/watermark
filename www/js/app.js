@@ -245,7 +245,7 @@ async function saveToAndroid(blob, filename) {
     // 检查 Capacitor 环境
     if (!window.Capacitor) {
         console.warn('[保存] window.Capacitor 不存在');
-        return false;
+        return { success: false, message: 'Capacitor 环境未加载' };
     }
     
     console.log('[保存] Capacitor 已加载:', {
@@ -257,9 +257,8 @@ async function saveToAndroid(blob, filename) {
     // 检查 Filesystem 插件
     const Filesystem = window.Capacitor?.Plugins?.Filesystem;
     if (!Filesystem) {
-        console.error('[保存] Filesystem 插件未找到！请确保已执行 npx cap sync');
-        alert('保存失败：Filesystem 插件未加载\n请联系开发者检查 Capacitor 配置');
-        return false;
+        console.error('[保存] Filesystem 插件未找到！');
+        return { success: false, message: 'Filesystem 插件未加载' };
     }
     
     console.log('[保存] Filesystem 插件已加载');
@@ -267,12 +266,6 @@ async function saveToAndroid(blob, filename) {
     try {
         const base64 = await blobToBase64(blob);
         console.log('[保存] Base64 转换完成，长度:', base64.length);
-        
-        // 修复关键点：
-        // 1) Directory.ExternalStorage 在 Android 10+ 需要 WRITE_EXTERNAL_STORAGE 权限
-        //    且在 Android 11+ 的 scoped storage 下可能完全不可用
-        // 2) Directory.Documents 是应用专属目录，无需权限，推荐使用
-        // 3) 尝试多个目录，按优先级回退
         
         const strategies = [
             {
@@ -306,49 +299,51 @@ async function saveToAndroid(blob, filename) {
                 });
                 
                 console.log('[保存] 保存成功！', result);
-                
-                // 成功后给用户明确提示
-                const uri = result?.uri || '';
-                let msg = `✓ 图片已保存\n\n`;
-                
-                if (uri) {
-                    msg += `路径: ${uri}\n\n`;
-                } else {
-                    msg += `目录: ${strategy.name}\n`;
-                    msg += `文件: ${strategy.path}\n\n`;
-                }
-                
-                if (strategy.name === 'Cache') {
-                    msg += `注意：保存在缓存目录，可能会被系统清理。\n建议使用文件管理器移动到相册。`;
-                } else {
-                    msg += `请在文件管理器的 "${strategy.name}/CameraWatermark" 目录查看。`;
-                }
-                
-                alert(msg);
-                return true;
+                return { success: true, message: '已保存到本地' };
                 
             } catch (e) {
                 console.warn(`[保存] 策略 ${strategy.name} 失败:`, e);
                 lastError = e;
-                // 继续尝试下一个策略
             }
         }
         
         // 所有策略都失败
         console.error('[保存] 所有保存策略都失败了，最后错误:', lastError);
-        alert(`保存失败\n\n错误: ${lastError?.message || lastError}\n\n建议：\n1. 检查存储空间是否充足\n2. 尝试重启应用\n3. 使用截图功能保存预览图`);
-        return false;
+        return { success: false, message: '保存失败，请检查存储空间' };
         
     } catch (e) {
         console.error('[保存] 保存过程异常:', e);
-        alert(`保存失败：${e?.message || e}`);
-        return false;
+        return { success: false, message: `保存失败：${e?.message || '未知错误'}` };
     }
+}
+
+// =====================================================
+// Toast 提示（替代 alert，无需用户交互）
+// =====================================================
+function showToast(message, type = 'success', duration = 2500) {
+    // 移除已有的 toast，避免堆叠
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 触发入场动画
+    requestAnimationFrame(() => {
+        toast.classList.add('toast-show');
+    });
+
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
 }
 
 downloadBtn.addEventListener('click', async () => {
     if (!latestBlob) {
-        alert('请先上传图片');
+        showToast('请先上传图片', 'error');
         return;
     }
 
@@ -367,19 +362,31 @@ downloadBtn.addEventListener('click', async () => {
     // Android 上优先用 Capacitor 写入相册目录
     const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     if (isCapacitor) {
-        const ok = await saveToAndroid(latestBlob, filename);
-        if (ok) return;
+        const result = await saveToAndroid(latestBlob, filename);
+        if (result.success) {
+            showToast(result.message, 'success');
+            return;
+        }
+        // 保存失败时给出提示，但不再触发浏览器下载（WebView 中无效）
+        showToast(result.message, 'error', 3000);
+        return;
     }
 
     // 浏览器：触发下载
-    const a = document.createElement('a');
-    const url = URL.createObjectURL(latestBlob);
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try {
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(latestBlob);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('已保存到本地', 'success');
+    } catch (e) {
+        console.error('[下载] 浏览器下载失败:', e);
+        showToast('下载失败', 'error');
+    }
 });
 
 // 初始化：默认展示首页
