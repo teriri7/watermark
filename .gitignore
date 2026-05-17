@@ -1,0 +1,33 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Capacitor 自动生成（CI 里会重新生成）
+android/
+ios/
+
+# 第三方库（CI 会自动下载）
+www/vendor/
+
+# 构建产物
+output/
+*.apk
+*.aab
+
+# Python（旧后端，保留以防回退）
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

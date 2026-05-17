@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Camera Watermark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="topbar">
+    <button id="backBtn" class="back-btn hidden" aria-label="返回首页">
+        <span class="back-arrow">‹</span>
+        <span>返回</span>
+    </button>
+    <div class="title">Camera Watermark</div>
+</div>
+
+<!-- 首页：水印样式选择 -->
+<div id="homePage" class="panel">
+    <div class="home-intro">
+        <h2 class="home-title">选择水印样式</h2>
+        <p class="home-subtitle">挑选一种喜欢的样式开始制作</p>
+    </div>
+
+    <div class="style-list">
+        <button class="style-card" data-style="style1">
+            <div class="style-thumb style-thumb-1">
+                <div class="thumb-photo"></div>
+                <div class="thumb-bottom"></div>
+            </div>
+            <div class="style-info">
+                <div class="style-name">水印一</div>
+                <div class="style-desc">经典底部白边水印</div>
+            </div>
+        </button>
+
+        <button class="style-card" data-style="style2">
+            <div class="style-thumb style-thumb-2">
+                <div class="thumb-photo"></div>
+                <div class="thumb-bottom"></div>
+            </div>
+            <div class="style-info">
+                <div class="style-name">水印二</div>
+                <div class="style-desc">四边白框，三边为底部的50%</div>
+            </div>
+        </button>
+
+        <button class="style-card" data-style="style3">
+            <div class="style-thumb style-thumb-3">
+                <div class="thumb-bg"></div>
+                <div class="thumb-photo"></div>
+                <div class="thumb-text-line"></div>
+                <div class="thumb-text-line thumb-text-line-2"></div>
+            </div>
+            <div class="style-info">
+                <div class="style-name">水印三</div>
+                <div class="style-desc">模糊背景边框 + 圆角主图 + 阴影</div>
+            </div>
+        </button>
+    </div>
+</div>
+
+<!-- 编辑页：上传图片 + 预览 + 下载 -->
+<div id="editorPage" class="panel hidden">
+    <div class="controls">
+        <div class="input-group">
+            <label for="imageInput" class="file-label">选择图片</label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+        <div class="input-group">
+            <div class="mode-switch">
+                <label class="mode-option">
+                    <input type="radio" name="displayMode" value="nickname" checked>
+                    <span>昵称</span>
+                </label>
+                <label class="mode-option">
+                    <input type="radio" name="displayMode" value="lens">
+                    <span>镜头型号</span>
+                </label>
+            </div>
+            <input type="text" id="nickname" placeholder="请输入昵称">
+        </div>
+    </div>
+
+    <div class="preview-wrapper">
+        <div class="preview-container">
+            <img id="preview" style="display: none;">
+            <div id="placeholder">请先选择一张图片</div>
+        </div>
+    </div>
+    
+    <button id="downloadBtn" class="hidden">
+        导出图片
+    </button>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+
+</body>
+</html>

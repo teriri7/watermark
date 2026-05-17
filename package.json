@@ -1,0 +1,21 @@
+{
+  "name": "camera-watermark",
+  "version": "1.0.0",
+  "description": "相机水印 - 为照片添加专业相机水印",
+  "main": "www/index.html",
+  "scripts": {
+    "build": "echo 'Static site, no build needed'",
+    "sync": "npx cap sync"
+  },
+  "keywords": ["camera", "watermark", "photo", "exif"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0"
+  }
+}
