@@ -37,19 +37,52 @@ function parseFraction(val) {
 }
 
 /**
+ * 将 File 转换为 ArrayBuffer（安卓兼容性更好）
+ * @param {File} file - 图片文件
+ * @returns {Promise<ArrayBuffer>}
+ */
+function fileToArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+/**
  * 读取图片 EXIF 信息
  * @param {File} file - 图片文件
  * @returns {Promise<Object>} EXIF 信息对象
  */
 export async function readExif(file) {
+    console.log('[EXIF] 开始读取 EXIF 信息:', file.name, file.type, file.size);
+    
     try {
-        // 动态导入 exifr（假设已通过 CDN 或打包工具引入）
+        // 检查 exifr 库是否加载
         const exifr = window.exifr;
         if (!exifr) {
+            console.error('[EXIF] exifr 库未加载！请检查 www/vendor/exifr.min.js 是否存在');
             throw new Error('exifr library not loaded');
         }
         
-        const tags = await exifr.parse(file, {
+        console.log('[EXIF] exifr 库已加载，开始解析...');
+        
+        // 安卓环境下，先转为 ArrayBuffer 再解析（兼容性更好）
+        let input = file;
+        const isAndroid = /android/i.test(navigator.userAgent);
+        if (isAndroid) {
+            console.log('[EXIF] 检测到安卓环境，使用 ArrayBuffer 方式读取');
+            try {
+                input = await fileToArrayBuffer(file);
+                console.log('[EXIF] ArrayBuffer 转换成功，大小:', input.byteLength);
+            } catch (e) {
+                console.warn('[EXIF] ArrayBuffer 转换失败，回退到 File 对象:', e);
+                input = file;
+            }
+        }
+        
+        const tags = await exifr.parse(input, {
             tiff: true,
             exif: true,
             gps: false,
@@ -59,6 +92,8 @@ export async function readExif(file) {
             makerNote: true,
             userComment: false,
         });
+        
+        console.log('[EXIF] 解析成功，原始标签:', tags);
         
         // 品牌识别
         const rawMake = tags?.Make || '';
@@ -105,7 +140,7 @@ export async function readExif(file) {
         // 方向
         const orientation = tags?.Orientation || 1;
         
-        return {
+        const result = {
             brand,
             rawMake,
             model,
@@ -119,8 +154,17 @@ export async function readExif(file) {
             orientation
         };
         
+        console.log('[EXIF] 最终结果:', result);
+        return result;
+        
     } catch (error) {
-        console.warn('EXIF 读取失败，使用默认值:', error);
+        console.error('[EXIF] 读取失败，使用默认值:', error);
+        console.error('[EXIF] 错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            exifrLoaded: !!window.exifr,
+            fileInfo: { name: file.name, type: file.type, size: file.size }
+        });
         
         // 返回默认值
         return {

@@ -55,6 +55,8 @@ function showEditor(style) {
         const selectedMode = document.querySelector('input[name="displayMode"]:checked');
         if (selectedMode && selectedMode.value === 'nickname') {
             if (nicknameInput) nicknameInput.style.display = '';
+        } else {
+            if (nicknameInput) nicknameInput.style.display = 'none';
         }
     }
 }
@@ -112,6 +114,27 @@ function truncateNickname(nickname) {
 }
 
 // =====================================================
+// 兜底 EXIF（保证 processWatermark 不会拿到 null）
+// =====================================================
+function getDefaultExif() {
+    const now = new Date();
+    const datetime = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return {
+        brand: 'canon',
+        rawMake: 'Canon',
+        model: 'R6 Mark II',
+        rawModel: 'Canon EOS R6m2',
+        focal: '35',
+        fnumber: '1.4',
+        exposure: '1/100',
+        iso: '100',
+        datetime,
+        lens: 'Lens',
+        orientation: 1
+    };
+}
+
+// =====================================================
 // 处理图片
 // =====================================================
 async function processImage() {
@@ -124,16 +147,19 @@ async function processImage() {
     // 缓存文件和 EXIF（避免重复读取）
     if (currentFile !== file) {
         currentFile = file;
+        console.log('[App] 开始处理新文件:', file.name, file.type, file.size);
         try {
             currentExif = await readExif(file);
+            console.log('[App] EXIF 读取完成:', currentExif);
         } catch (e) {
-            console.error('EXIF 读取失败', e);
-            currentExif = null;
+            console.error('[App] EXIF 读取异常', e);
+            currentExif = getDefaultExif();
         }
+        if (!currentExif) currentExif = getDefaultExif();
     }
 
     const selectedMode = document.querySelector('input[name="displayMode"]:checked');
-    const displayMode = selectedMode ? selectedMode.value : 'nickname';
+    const displayMode = selectedMode ? selectedMode.value : 'lens';
     const nickname = truncateNickname(nicknameInput.value || '所有二刺螈都得死');
 
     preview.style.opacity = '0.5';
