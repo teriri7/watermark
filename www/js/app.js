@@ -6,6 +6,18 @@
 import { processWatermark, canvasToBlob } from './watermark.js';
 import { readExif } from './exif-reader.js';
 
+// Capacitor Camera 插件（Android 上绕过 DocumentUI，保留完整 EXIF）
+let Camera = null;
+let CameraResultType = null;
+try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
+        Camera = window.Capacitor.Plugins.Camera;
+        CameraResultType = { Uri: 'uri', Base64: 'base64', DataUrl: 'dataUrl' };
+    }
+} catch (e) {
+    console.log('[App] Camera 插件不可用:', e);
+}
+
 // =====================================================
 // 页面元素
 // =====================================================
@@ -134,11 +146,87 @@ function getDefaultExif() {
 }
 
 // =====================================================
+// 使用 Camera 插件选择图片（绕过 Android DocumentUI，保留完整 EXIF）
+// =====================================================
+async function pickImageWithCamera() {
+    if (!Camera) return null;
+
+    try {
+        console.log('[App] 使用 Camera 插件选择图片...');
+        const photo = await Camera.pickImages({
+            quality: 100,
+            limit: 1,
+            resultType: 'uri'  // 返回 URI，后续通过 Filesystem 读取原始字节
+        });
+
+        if (!photo || !photo.photos || photo.photos.length === 0) {
+            console.log('[App] Camera 插件: 用户取消选择');
+            return null;
+        }
+
+        const picked = photo.photos[0];
+        console.log('[App] Camera 插件选择成功:', picked);
+
+        // 通过 Capacitor Filesystem 读取原始文件字节（保留完整 EXIF）
+        const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+        if (Filesystem) {
+            try {
+                // 读取文件内容为 base64
+                const readFile = await Filesystem.readFile({
+                    path: picked.path || picked.webPath
+                });
+                console.log('[App] Filesystem.readFile 成功');
+
+                // 将 base64 转为 Blob
+                const base64Data = readFile.data || readFile;
+                const byteString = atob(base64Data);
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+
+                // 根据格式确定 MIME 类型
+                let mime = picked.format || 'image/jpeg';
+                if (mime === 'jpg') mime = 'image/jpeg';
+
+                const blob = new Blob([ab], { type: mime });
+                const ext = mime.split('/')[1] || 'jpg';
+                const filename = picked.name || `photo_${Date.now()}.${ext}`;
+                const file = new File([blob], filename, { type: mime });
+
+                console.log('[App] 通过 Filesystem 读取原始文件，大小:', file.size);
+                return file;
+            } catch (fsErr) {
+                console.warn('[App] Filesystem.readFile 失败，尝试 fetch:', fsErr);
+            }
+        }
+
+        // 备用：通过 fetch 获取
+        const response = await fetch(picked.webPath);
+        const blob = await response.blob();
+        const ext = (picked.format || 'jpeg').replace('jpg', 'jpeg');
+        const filename = picked.name || `photo_${Date.now()}.${ext}`;
+        const file = new File([blob], filename, { type: blob.type });
+        console.log('[App] 通过 fetch 获取图片，大小:', file.size);
+        return file;
+    } catch (e) {
+        console.warn('[App] Camera 插件选择失败:', e);
+        return null;
+    }
+}
+
+// =====================================================
 // 处理图片
 // =====================================================
 async function processImage() {
-    const file = imageInput.files[0];
-    if (!file) return;
+    let file = imageInput.files[0];
+
+    // 如果 HTML input 没有文件，尝试使用 Camera 插件
+    if (!file) {
+        file = await pickImageWithCamera();
+        if (!file) return;
+    }
 
     fileLabel.textContent = '已选择: ' + file.name;
     originalFileName = file.name;
@@ -197,6 +285,21 @@ async function processImage() {
     }
 }
 
+// 图片选择：Android 上优先使用 Camera 插件（保留完整 EXIF），其他环境使用 HTML input
+imageInput.addEventListener('click', async (e) => {
+    const isAndroid = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+    if (isAndroid && Camera) {
+        e.preventDefault();  // 阻止默认的文件选择器
+        const file = await pickImageWithCamera();
+        if (file) {
+            // 模拟 file input 的行为
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            imageInput.files = dataTransfer.files;
+            processImage();
+        }
+    }
+});
 imageInput.addEventListener('change', processImage);
 
 // 防抖处理输入

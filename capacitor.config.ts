@@ -15,6 +15,23 @@ const config: CapacitorConfig = {
       keystoreAliasPassword: undefined,
       releaseType: 'APK'
     }
+  },
+  plugins: {
+    Camera: {
+      // Android 权限配置
+      androidPermissions: [
+        'android.permission.READ_MEDIA_IMAGES',      // Android 13+
+        'android.permission.READ_EXTERNAL_STORAGE',   // Android 12-
+        'android.permission.CAMERA'
+      ]
+    },
+    Filesystem: {
+      // 允许读取外部存储
+      androidPermissions: [
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_EXTERNAL_STORAGE'
+      ]
+    }
   }
 };
 
