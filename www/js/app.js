@@ -505,6 +505,17 @@ const contactBtn = document.getElementById('contactBtn');
 if (contactBtn) {
     const qqLink = 'https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534';
 
+    // 跳转链接的函数（兼容 Android WebView）
+    function openQQ() {
+        // 在 Capacitor 环境中使用 Browser 插件
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+            window.Capacitor.Plugins.Browser.open({ url: qqLink });
+        } else {
+            // 浏览器环境直接跳转
+            window.location.href = qqLink;
+        }
+    }
+
     // 触摸设备：点击展开/收起
     let isExpanded = false;
     let expandTimeout;
@@ -520,6 +531,7 @@ if (contactBtn) {
 
     contactBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!isExpanded) {
             // 第一次点击：展开按钮
             contactBtn.classList.add('expanded');
@@ -527,7 +539,7 @@ if (contactBtn) {
             setAutoCollapse();
         } else {
             // 第二次点击：跳转链接
-            window.open(qqLink, '_blank');
+            openQQ();
             contactBtn.classList.remove('expanded');
             isExpanded = false;
         }

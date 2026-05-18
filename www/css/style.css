@@ -466,7 +466,7 @@ input[type="file"] {
    ===================================================== */
 .contact-btn {
     position: fixed;
-    left: -30px;  /* 默认收起，只露出约 30% */
+    left: -23px;  /* 默认收起，露出约 50% */
     bottom: 100px;
     z-index: 999;
     cursor: pointer;
@@ -589,7 +589,7 @@ input[type="file"] {
 /* 移动端优化：防止误触 */
 @media (max-width: 768px) {
     .contact-btn {
-        left: -35px;  /* 移动端收起更多 */
+        left: -20px;  /* 移动端收起，露出约 50% */
         bottom: 80px;
     }
 

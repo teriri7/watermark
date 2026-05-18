@@ -47,10 +47,10 @@ const style3Config = {
     borderScale: 0.055,
     bottomExtraScale: 0.055,
     cornerRadiusScale: 0.05,
-    // 增强模糊：从 0.05 提升至 0.08
-    blurRadiusScale: 0.08,
-    // 增强模糊：从 1.25 提升至 1.40，提供更多背景素材
-    bgZoom: 1.40,
+    // 增强模糊：从 0.08 提升至 0.15，让背景更加模糊
+    blurRadiusScale: 0.15,
+    // 增强模糊：从 1.40 提升至 1.60，提供更多背景素材
+    bgZoom: 1.60,
     shadowOffsetScale: 0.015,
     shadowBlurScale: 0.03,
     shadowAlpha: 150,
@@ -337,10 +337,10 @@ async function renderStyle3(img, exifInfo) {
     sctx.drawImage(img, 0, 0, sw, sh);
 
     const targetBlur = Math.min(canvasW, canvasH) * config.blurRadiusScale;
-    const smallBlur = Math.max(2.0, targetBlur * Math.min(sw, sh) / Math.min(canvasW, canvasH));
+    const smallBlur = Math.max(4.0, targetBlur * Math.min(sw, sh) / Math.min(canvasW, canvasH));
 
-    // 多级模糊：分 3 步叠加，产生更柔和自然的 bokeh 效果
-    const blurSteps = [smallBlur * 0.4, smallBlur * 0.7, smallBlur * 1.0];
+    // 多级模糊：分 4 步叠加，产生更柔和自然的 bokeh 效果
+    const blurSteps = [smallBlur * 0.5, smallBlur * 0.7, smallBlur * 0.9, smallBlur * 1.2];
     for (let i = 0; i < blurSteps.length; i++) {
         const blurPx = blurSteps[i];
         ctx.save();
