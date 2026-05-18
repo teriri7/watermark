@@ -231,7 +231,9 @@ async function renderStyle1And2(img, exifInfo, displayMode, nickname, watermarkS
     const exifText = `${exifInfo.focal}mm${spacing}f/${exifInfo.fnumber}${spacing}${exifInfo.exposure}s${spacing}ISO${exifInfo.iso}`;
 
     const exifTextWidth = measureWidth(ctx, exifText, infoFont);
-    const modelTextWidth = measureWidth(ctx, exifInfo.model, boldFont);
+    // 机型（竖屏时简化显示，横屏时完整显示）
+    const displayModel = isPortrait ? simplifyModel(exifInfo.model, exifInfo.brand) : exifInfo.model;
+    const modelTextWidth = measureWidth(ctx, displayModel, boldFont);
 
     const textDistance = Math.floor(width * config.textToLineDistanceScale);
     const rightTextX = sideBorder + width - sidePadding - exifTextWidth;
@@ -267,8 +269,7 @@ async function renderStyle1And2(img, exifInfo, displayMode, nickname, watermarkS
     ctx.lineTo(lineX, lineBottom);
     ctx.stroke();
 
-    // 机型（竖屏时简化显示，横屏时完整显示）
-    const displayModel = isPortrait ? simplifyModel(exifInfo.model, exifInfo.brand) : exifInfo.model;
+    // 机型
     setFont(ctx, boldFont);
     ctx.fillStyle = 'black';
     ctx.fillText(displayModel, leftTextX, topRowY);

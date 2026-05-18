@@ -49,6 +49,8 @@ function showHome() {
     homePage.classList.remove('hidden');
     editorPage.classList.add('hidden');
     backBtn.classList.add('hidden');
+    // 显示联系作者按钮
+    if (contactBtn) contactBtn.style.display = '';
 }
 
 function showEditor(style) {
@@ -56,6 +58,8 @@ function showEditor(style) {
     homePage.classList.add('hidden');
     editorPage.classList.remove('hidden');
     backBtn.classList.remove('hidden');
+    // 隐藏联系作者按钮
+    if (contactBtn) contactBtn.style.display = 'none';
 
     const controlsDiv = document.querySelector('.controls');
     const inputGroups = controlsDiv ? controlsDiv.querySelectorAll('.input-group') : [];
@@ -499,31 +503,31 @@ showHome();
 // =====================================================
 const contactBtn = document.getElementById('contactBtn');
 if (contactBtn) {
-    // 点击跳转到 QQ 联系页面
-    contactBtn.addEventListener('click', () => {
-        window.open('https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534', '_blank');
-    });
+    const qqLink = 'https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534';
 
     // 触摸设备：点击展开/收起
     let isExpanded = false;
     let expandTimeout;
 
-    contactBtn.addEventListener('touchstart', (e) => {
+    // 设置自动收起定时器
+    function setAutoCollapse() {
+        clearTimeout(expandTimeout);
+        expandTimeout = setTimeout(() => {
+            contactBtn.classList.remove('expanded');
+            isExpanded = false;
+        }, 2000);  // 2秒后自动收起
+    }
+
+    contactBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (!isExpanded) {
             // 第一次点击：展开按钮
             contactBtn.classList.add('expanded');
             isExpanded = true;
-
-            // 3秒后自动收起
-            clearTimeout(expandTimeout);
-            expandTimeout = setTimeout(() => {
-                contactBtn.classList.remove('expanded');
-                isExpanded = false;
-            }, 3000);
+            setAutoCollapse();
         } else {
             // 第二次点击：跳转链接
-            window.open('https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534', '_blank');
+            window.open(qqLink, '_blank');
             contactBtn.classList.remove('expanded');
             isExpanded = false;
         }
@@ -536,10 +540,7 @@ if (contactBtn) {
 
     contactBtn.addEventListener('mouseleave', () => {
         if (isExpanded) {
-            expandTimeout = setTimeout(() => {
-                contactBtn.classList.remove('expanded');
-                isExpanded = false;
-            }, 1000);
+            setAutoCollapse();
         }
     });
 }

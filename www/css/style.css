@@ -466,7 +466,7 @@ input[type="file"] {
    ===================================================== */
 .contact-btn {
     position: fixed;
-    left: -20px;  /* 默认收起，只露出一小半 */
+    left: -30px;  /* 默认收起，只露出约 30% */
     bottom: 100px;
     z-index: 999;
     cursor: pointer;
@@ -480,17 +480,17 @@ input[type="file"] {
 
 .contact-btn-inner {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 46px;
+    height: 46px;
 }
 
 .contact-avatar {
-    width: 56px;
-    height: 56px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     object-fit: cover;
-    border: 3px solid #ffffff;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    border: 2px solid #ffffff;
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
     animation: contact-pulse 2s ease-in-out infinite;  /* 呼吸灯动效 */
 }
@@ -498,20 +498,20 @@ input[type="file"] {
 .contact-btn:hover .contact-avatar,
 .contact-btn.expanded .contact-avatar {
     transform: scale(1.1);
-    box-shadow: 0 6px 25px rgba(0, 122, 255, 0.4);
+    box-shadow: 0 5px 20px rgba(0, 122, 255, 0.4);
     animation: contact-bounce 0.5s ease;  /* 点击弹跳动效 */
 }
 
 .contact-tooltip {
     position: absolute;
-    left: 70px;
+    left: 55px;
     top: 50%;
     transform: translateY(-50%);
     background: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 14px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
     opacity: 0;
@@ -524,10 +524,10 @@ input[type="file"] {
 .contact-tooltip::before {
     content: '';
     position: absolute;
-    left: -6px;
+    left: -5px;
     top: 50%;
     transform: translateY(-50%);
-    border-width: 6px 6px 6px 0;
+    border-width: 5px 5px 5px 0;
     border-style: solid;
     border-color: transparent rgba(0, 0, 0, 0.8) transparent transparent;
 }
@@ -541,10 +541,10 @@ input[type="file"] {
 /* 呼吸灯动效 */
 @keyframes contact-pulse {
     0%, 100% {
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
     }
     50% {
-        box-shadow: 0 4px 20px rgba(0, 122, 255, 0.4), 0 0 30px rgba(0, 122, 255, 0.2);
+        box-shadow: 0 3px 15px rgba(0, 122, 255, 0.4), 0 0 25px rgba(0, 122, 255, 0.2);
     }
 }
 
@@ -565,8 +565,8 @@ input[type="file"] {
 .contact-btn::after {
     content: '';
     position: absolute;
-    width: 56px;
-    height: 56px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     background: rgba(0, 122, 255, 0.15);
     top: 0;
@@ -589,7 +589,7 @@ input[type="file"] {
 /* 移动端优化：防止误触 */
 @media (max-width: 768px) {
     .contact-btn {
-        left: -25px;  /* 移动端收起更多 */
+        left: -35px;  /* 移动端收起更多 */
         bottom: 80px;
     }
 
@@ -599,12 +599,17 @@ input[type="file"] {
     }
 
     .contact-avatar {
-        width: 50px;
-        height: 50px;
+        width: 40px;
+        height: 40px;
     }
 
     .contact-btn::after {
-        width: 50px;
-        height: 50px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .contact-btn-inner {
+        width: 40px;
+        height: 40px;
     }
 }
