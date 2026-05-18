@@ -62,52 +62,15 @@ const style3Config = {
 };
 
 // =========================================================
-// 品牌识别 / 机型简化
+// 品牌识别
 // =========================================================
-const ROMAN_MAP = {
-    '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V',
-    '6': 'VI', '7': 'VII', '8': 'VIII', '9': 'IX', '10': 'X',
-};
-
 function detectBrand(make) {
-    if (!make) return 'canon';
+    if (!make) return null;
     const m = String(make).trim().toUpperCase();
     if (m.includes('CANON')) return 'canon';
     if (m.includes('SONY')) return 'sony';
     if (m.includes('NIKON')) return 'nikon';
-    return 'canon';
-}
-
-function simplifyCanon(model) {
-    model = model.replace(/Canon EOS /gi, '').replace(/Canon /gi, '').replace(/EOS /gi, '');
-    for (let i = 10; i >= 1; i--) {
-        const re = new RegExp(`m${i}$`, 'i');
-        if (re.test(model)) return model.replace(re, `Mark ${ROMAN_MAP[i]}`);
-    }
-    return model.trim();
-}
-
-function simplifySony(model) {
-    return model.replace(/^sony\s+/i, '').trim();
-}
-
-function simplifyNikon(model) {
-    model = model.replace(/^nikon\s+corporation\s+/i, '').replace(/^nikon\s+/i, '');
-    const match = model.match(/_(\d+)$/);
-    if (match) {
-        const num = match[1];
-        const roman = ROMAN_MAP[num] || num;
-        model = model.replace(/_\d+$/, ` Mark ${roman}`);
-    }
-    model = model.replace(/^([A-Za-z])\s+(\d)/, '$1$2');
-    return model.trim();
-}
-
-export function simplifyCameraModel(model, brand = 'canon') {
-    model = String(model).trim();
-    if (brand === 'sony') return simplifySony(model);
-    if (brand === 'nikon') return simplifyNikon(model);
-    return simplifyCanon(model);
+    return null;
 }
 
 export { detectBrand };
@@ -132,12 +95,14 @@ const LOGO_MAP = {
 };
 
 async function loadLogo(brand, style) {
-    const paths = LOGO_MAP[brand] || LOGO_MAP.canon;
+    if (!brand || !LOGO_MAP[brand]) return null;
+    const paths = LOGO_MAP[brand];
     const path = style === 'style3' ? (paths.style3 || paths.normal) : paths.normal;
     try {
         return await loadImage(path);
     } catch (e) {
-        return await loadImage(LOGO_MAP.canon.normal);
+        console.warn('[Logo] 加载失败:', path, e);
+        return null;
     }
 }
 
@@ -249,16 +214,20 @@ async function renderStyle1And2(img, exifInfo, displayMode, nickname, watermarkS
     const lineX = rightTextX - textDistance;
     const leftTextX = lineX - textDistance - modelTextWidth;
 
-    // Logo
-    const brand = exifInfo.brand || 'canon';
-    const logo = await loadLogo(brand, 'normal');
-    const logoScale = (config.brandLogoScales && config.brandLogoScales[brand]) || config.logoScale;
-    const logoHeight = Math.floor(watermarkHeight * logoScale);
-    const logoRatio = logo.width / logo.height;
-    const logoWidth = Math.floor(logoHeight * logoRatio);
-    const logoX = sideBorder + sidePadding;
-    const logoY = Math.floor(sideBorder + height + (watermarkHeight - logoHeight) / 2 + config.logoYOffset);
-    ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
+    // Logo（仅在品牌能识别时绘制）
+    const brand = exifInfo.brand || null;
+    if (brand) {
+        const logo = await loadLogo(brand, 'normal');
+        if (logo) {
+            const logoScale = (config.brandLogoScales && config.brandLogoScales[brand]) || config.logoScale;
+            const logoHeight = Math.floor(watermarkHeight * logoScale);
+            const logoRatio = logo.width / logo.height;
+            const logoWidth = Math.floor(logoHeight * logoRatio);
+            const logoX = sideBorder + sidePadding;
+            const logoY = Math.floor(sideBorder + height + (watermarkHeight - logoHeight) / 2 + config.logoYOffset);
+            ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
+        }
+    }
 
     // Y 坐标（top 基线）
     const topRowY = Math.floor(sideBorder + height + watermarkHeight * config.topRowYScale);
@@ -390,14 +359,22 @@ async function renderStyle3(img, exifInfo) {
     const boldFont = `bold ${modelFontSize}px "Helvetica Neue", Arial, sans-serif`;
     const infoFont = `${exifFontSize}px "Helvetica Neue", Arial, sans-serif`;
 
-    const brand = exifInfo.brand || 'canon';
-    const modelText = brand === 'canon' ? (exifInfo.rawModel || exifInfo.model) : exifInfo.model;
+    const brand = exifInfo.brand || null;
+    const modelText = exifInfo.model;
 
-    const logo = await loadLogo(brand, 'style3');
-    const logoH = Math.floor(modelFontSize * config.logoHeightToFont);
-    const logoRatio = logo.width / logo.height;
-    const logoW = Math.floor(logoH * logoRatio);
-    const logoTextGap = Math.floor(modelFontSize * config.logoTextGapToFont);
+    let logo = null;
+    let logoW = 0;
+    let logoH = 0;
+    let logoTextGap = 0;
+    if (brand) {
+        logo = await loadLogo(brand, 'style3');
+        if (logo) {
+            logoH = Math.floor(modelFontSize * config.logoHeightToFont);
+            const logoRatio = logo.width / logo.height;
+            logoW = Math.floor(logoH * logoRatio);
+            logoTextGap = Math.floor(modelFontSize * config.logoTextGapToFont);
+        }
+    }
 
     const modelW = measureWidth(ctx, modelText, boldFont);
     const row1W = logoW + logoTextGap + modelW;
@@ -418,12 +395,14 @@ async function renderStyle3(img, exifInfo) {
 
     const row1Top = blockTop;
     const row1CenterY = row1Top + Math.floor(row1H / 2);
-    const logoY = row1CenterY - Math.floor(logoH / 2);
+    const logoY = logo ? (row1CenterY - Math.floor(logoH / 2)) : 0;
     const modelY = row1CenterY - Math.floor(modelVisualH / 2);
     const row2Top = row1Top + row1H + rowGap;
     const row2Y = row2Top;
 
-    ctx.drawImage(logo, row1X, logoY, logoW, logoH);
+    if (logo) {
+        ctx.drawImage(logo, row1X, logoY, logoW, logoH);
+    }
 
     setFont(ctx, boldFont);
     ctx.fillStyle = 'white';

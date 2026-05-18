@@ -120,10 +120,9 @@ function getDefaultExif() {
     const now = new Date();
     const datetime = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     return {
-        brand: 'canon',
-        rawMake: 'Canon',
-        model: 'R6 Mark II',
-        rawModel: 'Canon EOS R6m2',
+        brand: null,
+        rawMake: '',
+        model: 'Unknown',
         focal: '35',
         fnumber: '1.4',
         exposure: '1/100',

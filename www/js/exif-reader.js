@@ -8,7 +8,7 @@
  * 3) 增加 XMP 解析尝试，并补充更多备选标签名
  */
 
-import { detectBrand, simplifyCameraModel } from './watermark.js';
+import { detectBrand } from './watermark.js';
 
 // =====================================================
 // 工具函数
@@ -139,10 +139,9 @@ function isComplete(tags) {
 // =====================================================
 function getDefaultExifValues() {
     return {
-        brand: 'canon',
-        rawMake: 'Canon',
-        model: 'R6 Mark II',
-        rawModel: 'Canon EOS R6m2',
+        brand: null,
+        rawMake: '',
+        model: 'Unknown',
         focal: '35',
         fnumber: '1.4',
         exposure: '1/100',
@@ -304,8 +303,7 @@ export async function readExif(file) {
     const result = {
         brand: rawMake ? detectBrand(rawMake) : def.brand,
         rawMake: rawMake || def.rawMake,
-        model: rawModel ? simplifyCameraModel(rawModel, rawMake ? detectBrand(rawMake) : def.brand) : def.model,
-        rawModel: rawModel || def.rawModel,
+        model: rawModel || def.model,
         focal: (focalNum !== null && focalNum > 0) ? String(Math.round(focalNum)) : def.focal,
         fnumber: (fNum !== null && fNum > 0)
             ? String(Math.round(fNum * 10) / 10)
