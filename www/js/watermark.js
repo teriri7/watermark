@@ -16,9 +16,9 @@ const portraitConfig = {
     logoScale: 0.5,
     brandLogoScales: { canon: 0.5, sony: 0.5, nikon: 0.65 },
     logoYOffset: 0,
-    modelFontScale: 0.21,
-    exifFontScale: 0.18,
-    smallFontScale: 0.16,
+    modelFontScale: 0.18,
+    exifFontScale: 0.16,
+    smallFontScale: 0.15,
     textToLineDistanceScale: 0.025,
     topRowYScale: 0.28,
     bottomRowYScale: 0.53,
@@ -71,6 +71,30 @@ function detectBrand(make) {
     if (m.includes('SONY')) return 'sony';
     if (m.includes('NIKON')) return 'nikon';
     return null;
+}
+
+// 简化相机型号（竖屏状态下使用）
+// 索尼：ILCE-7M3 → 7M3，ILCE-7RM2 → 7RM2
+// 佳能：Canon EOS R6m2 → R6m2
+// 尼康：NIKON D810 → D810
+function simplifyModel(model, brand) {
+    if (!model || !brand) return model;
+
+    const m = String(model).trim();
+
+    switch (brand) {
+        case 'sony':
+            // 去掉 ILCE-、ILCA-、DSC- 等前缀
+            return m.replace(/^(ILCE|ILCA|DSC|SLT|NEX|DSLR)-/i, '');
+        case 'canon':
+            // 去掉 Canon EOS 前缀
+            return m.replace(/^Canon\s+EOS\s+/i, '');
+        case 'nikon':
+            // 去掉 NIKON 前缀
+            return m.replace(/^NIKON\s+/i, '');
+        default:
+            return m;
+    }
 }
 
 export { detectBrand };
@@ -136,8 +160,8 @@ async function loadOrientedImage(file, orientation) {
         }
         ctx.drawImage(img, 0, 0);
 
-        // 用旋转后的 canvas 替代 img
-        const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
+        // 使用 PNG 格式避免质量损失（无损）
+        const dataUrl = canvas.toDataURL('image/png');
         return await loadImage(dataUrl);
     } finally {
         URL.revokeObjectURL(url);
@@ -243,10 +267,11 @@ async function renderStyle1And2(img, exifInfo, displayMode, nickname, watermarkS
     ctx.lineTo(lineX, lineBottom);
     ctx.stroke();
 
-    // 机型
+    // 机型（竖屏时简化显示，横屏时完整显示）
+    const displayModel = isPortrait ? simplifyModel(exifInfo.model, exifInfo.brand) : exifInfo.model;
     setFont(ctx, boldFont);
     ctx.fillStyle = 'black';
-    ctx.fillText(exifInfo.model, leftTextX, topRowY);
+    ctx.fillText(displayModel, leftTextX, topRowY);
 
     // 第二行左：昵称 / 镜头，右对齐到机型尾部
     const bottomLeftText = displayMode === 'lens' ? exifInfo.lens : nickname;

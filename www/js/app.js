@@ -266,7 +266,7 @@ async function processImage() {
         if (lower.endsWith('.png')) mime = 'image/png';
         else if (lower.endsWith('.webp')) mime = 'image/webp';
 
-        const blob = await canvasToBlob(canvas, mime, 0.95);
+        const blob = await canvasToBlob(canvas, mime, 1.0);
         latestBlob = blob;
 
         const url = URL.createObjectURL(blob);
@@ -493,3 +493,53 @@ downloadBtn.addEventListener('click', async () => {
 
 // 初始化：默认展示首页
 showHome();
+
+// =====================================================
+// 联系作者按钮
+// =====================================================
+const contactBtn = document.getElementById('contactBtn');
+if (contactBtn) {
+    // 点击跳转到 QQ 联系页面
+    contactBtn.addEventListener('click', () => {
+        window.open('https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534', '_blank');
+    });
+
+    // 触摸设备：点击展开/收起
+    let isExpanded = false;
+    let expandTimeout;
+
+    contactBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (!isExpanded) {
+            // 第一次点击：展开按钮
+            contactBtn.classList.add('expanded');
+            isExpanded = true;
+
+            // 3秒后自动收起
+            clearTimeout(expandTimeout);
+            expandTimeout = setTimeout(() => {
+                contactBtn.classList.remove('expanded');
+                isExpanded = false;
+            }, 3000);
+        } else {
+            // 第二次点击：跳转链接
+            window.open('https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534', '_blank');
+            contactBtn.classList.remove('expanded');
+            isExpanded = false;
+        }
+    });
+
+    // 鼠标移入移出（桌面端）
+    contactBtn.addEventListener('mouseenter', () => {
+        clearTimeout(expandTimeout);
+    });
+
+    contactBtn.addEventListener('mouseleave', () => {
+        if (isExpanded) {
+            expandTimeout = setTimeout(() => {
+                contactBtn.classList.remove('expanded');
+                isExpanded = false;
+            }, 1000);
+        }
+    });
+}
