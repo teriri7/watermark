@@ -49,8 +49,6 @@ function showHome() {
     homePage.classList.remove('hidden');
     editorPage.classList.add('hidden');
     backBtn.classList.add('hidden');
-    // 显示联系作者按钮
-    if (contactBtn) contactBtn.style.display = '';
 }
 
 function showEditor(style) {
@@ -58,8 +56,6 @@ function showEditor(style) {
     homePage.classList.add('hidden');
     editorPage.classList.remove('hidden');
     backBtn.classList.remove('hidden');
-    // 隐藏联系作者按钮
-    if (contactBtn) contactBtn.style.display = 'none';
 
     const controlsDiv = document.querySelector('.controls');
     const inputGroups = controlsDiv ? controlsDiv.querySelectorAll('.input-group') : [];
@@ -497,62 +493,3 @@ downloadBtn.addEventListener('click', async () => {
 
 // 初始化：默认展示首页
 showHome();
-
-// =====================================================
-// 联系作者按钮
-// =====================================================
-const contactBtn = document.getElementById('contactBtn');
-if (contactBtn) {
-    const qqLink = 'https://ti.qq.com/open_qq/index2.html?url=mqqapi%3a%2f%2fuserprofile%2ffriend_profile_card%3fsrc_type%3dweb%26version%3d1.0%26source%3d2%26uin%3d321107534';
-
-    // 跳转链接的函数（兼容 Android WebView）
-    function openQQ() {
-        // 在 Capacitor 环境中使用 Browser 插件
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-            window.Capacitor.Plugins.Browser.open({ url: qqLink });
-        } else {
-            // 浏览器环境直接跳转
-            window.location.href = qqLink;
-        }
-    }
-
-    // 触摸设备：点击展开/收起
-    let isExpanded = false;
-    let expandTimeout;
-
-    // 设置自动收起定时器
-    function setAutoCollapse() {
-        clearTimeout(expandTimeout);
-        expandTimeout = setTimeout(() => {
-            contactBtn.classList.remove('expanded');
-            isExpanded = false;
-        }, 2000);  // 2秒后自动收起
-    }
-
-    contactBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isExpanded) {
-            // 第一次点击：展开按钮
-            contactBtn.classList.add('expanded');
-            isExpanded = true;
-            setAutoCollapse();
-        } else {
-            // 第二次点击：跳转链接
-            openQQ();
-            contactBtn.classList.remove('expanded');
-            isExpanded = false;
-        }
-    });
-
-    // 鼠标移入移出（桌面端）
-    contactBtn.addEventListener('mouseenter', () => {
-        clearTimeout(expandTimeout);
-    });
-
-    contactBtn.addEventListener('mouseleave', () => {
-        if (isExpanded) {
-            setAutoCollapse();
-        }
-    });
-}
