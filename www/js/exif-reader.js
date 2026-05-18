@@ -1,12 +1,11 @@
 /**
- * EXIF 读取模块
+ * EXIF 读取模块（修复版）
  * 使用 exifr 库读取照片元数据
  *
- * 关键点（Android WebView 兼容）：
- * 1) 关闭 makerNote（厂商私有段，结构非标准，常导致解析失败）
- * 2) 多次串行尝试解析，不同方式互为兜底
- * 3) 不使用 pick 选项（某些 exifr 版本对 pick 行为不一致）
- * 4) 对返回值类型做完整兼容（数字/字符串/分数/Rational/数组）
+ * 修复要点：
+ * 1) mergeTags 不再因 0 值占位而阻止后续正确值覆盖
+ * 2) isComplete 判断更严格，避免提前终止
+ * 3) 增加 XMP 解析尝试，并补充更多备选标签名
  */
 
 import { detectBrand, simplifyCameraModel } from './watermark.js';
@@ -15,7 +14,7 @@ import { detectBrand, simplifyCameraModel } from './watermark.js';
 // 工具函数
 // =====================================================
 
-// 是否为"有效值"（注意：数字 0 也算有效；空字符串、null、undefined、NaN 不算）
+// 是否为有效值（数字 0 也算有效，主要用于字符串/NaN检查）
 function hasValue(v) {
     if (v === null || v === undefined) return false;
     if (typeof v === 'string') return v.trim() !== '';
@@ -23,21 +22,26 @@ function hasValue(v) {
     return true;
 }
 
-// 把一个 EXIF 值转成数字（兼容数字 / 字符串 / "a/b" / Rational对象 / 数组）
+// 用于 mergeTags 的有效性判断：数字 0 视为无效（需允许后续覆盖）
+function isValidValue(v) {
+    if (v === null || v === undefined) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (typeof v === 'number') return !Number.isNaN(v) && v !== 0;
+    return true;
+}
+
+// 将一个 EXIF 值转换为数字（兼容数字/字符串/"a/b"/Rational对象/数组）
 function toNumber(val) {
     if (!hasValue(val)) return null;
 
-    // 数组（如某些 ISO 字段返回 [100]）
     if (Array.isArray(val)) {
         return toNumber(val[0]);
     }
 
-    // 数字
     if (typeof val === 'number') {
         return Number.isFinite(val) ? val : null;
     }
 
-    // Rational 对象
     if (typeof val === 'object') {
         if ('numerator' in val && 'denominator' in val) {
             const d = Number(val.denominator);
@@ -46,7 +50,6 @@ function toNumber(val) {
         if ('value' in val) return toNumber(val.value);
     }
 
-    // 字符串
     const s = String(val).trim();
     if (s === '') return null;
     if (s.includes('/')) {
@@ -75,7 +78,7 @@ function formatDateTime(dt) {
     return formatDateTime(null);
 }
 
-// File -> ArrayBuffer
+// File → ArrayBuffer
 function fileToArrayBuffer(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -85,14 +88,17 @@ function fileToArrayBuffer(file) {
     });
 }
 
-// 把多个 parse 结果合并（前面的优先，后面的补充缺失字段）
+// 合并多个 parse 结果：有效值优先，数字 0 可被非零值覆盖
 function mergeTags(...tagSets) {
     const out = {};
     for (const t of tagSets) {
         if (!t || typeof t !== 'object') continue;
         for (const k of Object.keys(t)) {
-            if (!hasValue(out[k])) {
-                out[k] = t[k];
+            const newVal = t[k];
+            // 已有值无效，或已有值为 0 且新值是非零有效数值，则覆盖
+            if (!isValidValue(out[k]) ||
+                (typeof newVal === 'number' && newVal !== 0 && out[k] === 0)) {
+                out[k] = newVal;
             }
         }
     }
@@ -111,14 +117,21 @@ async function safeParse(exifr, input, options, label) {
     }
 }
 
-// 判断关键字段是否齐全（用于决定是否还要继续尝试）
+// 判断关键字段是否齐全且有意义（不包含0或空字符串）
 function isComplete(tags) {
     if (!tags) return false;
-    return hasValue(tags.Make)
-        && hasValue(tags.Model)
-        && (hasValue(tags.FNumber) || hasValue(tags.ApertureValue))
-        && (hasValue(tags.ExposureTime) || hasValue(tags.ShutterSpeedValue))
-        && (hasValue(tags.ISO) || hasValue(tags.ISOSpeedRatings) || hasValue(tags.PhotographicSensitivity));
+    const check = (k) => {
+        const v = tags[k];
+        if (v === null || v === undefined) return false;
+        if (typeof v === 'number') return v > 0;
+        if (typeof v === 'string') return v.trim() !== '';
+        return true;
+    };
+    return check('Make')
+        && check('Model')
+        && (check('FNumber') || check('ApertureValue'))
+        && (check('ExposureTime') || check('ShutterSpeedValue'))
+        && (check('ISO') || check('ISOSpeedRatings') || check('PhotographicSensitivity'));
 }
 
 // =====================================================
@@ -160,11 +173,10 @@ export async function readExif(file) {
         };
     }
 
-    // ---------- 多重串行尝试 ----------
-    // 串行而非并行：避免同一 buffer 被并发读取时产生竞争状态
+    // 多重串行尝试，顺序优化
     let tags = null;
 
-    // 优先把 file 转成 ArrayBuffer，Android WebView 上更稳
+    // 先将 File 转为 ArrayBuffer（Android WebView 更稳定）
     let buf = null;
     try {
         buf = await fileToArrayBuffer(file);
@@ -173,37 +185,19 @@ export async function readExif(file) {
         console.warn('[EXIF] ArrayBuffer 转换失败:', e);
     }
 
-    // 尝试 1：默认配置（最简单），ArrayBuffer 输入
+    // 尝试 1：默认配置 + ArrayBuffer（快速获取基础段）
     if (buf) {
         const r = await safeParse(exifr, buf, undefined, '尝试1[默认+ArrayBuffer]');
         if (r) tags = mergeTags(tags, r);
-        if (isComplete(tags)) {
-            console.log('[EXIF] 尝试1 已读到完整字段，提前结束');
-        }
     }
 
-    // 尝试 2：默认配置，File 输入（某些环境 ArrayBuffer 路径有问题）
+    // 尝试 2：默认配置 + File（兼容某些环境）
     if (!isComplete(tags)) {
         const r = await safeParse(exifr, file, undefined, '尝试2[默认+File]');
         if (r) tags = mergeTags(tags, r);
     }
 
-    // 尝试 3：显式开启 ifd0 + exif，关闭 makerNote
-    if (!isComplete(tags) && buf) {
-        const r = await safeParse(exifr, buf, {
-            tiff: true,
-            ifd0: true,
-            exif: true,
-            gps: false,
-            interop: false,
-            ifd1: false,
-            makerNote: false,
-            userComment: false
-        }, '尝试3[详细配置+ArrayBuffer]');
-        if (r) tags = mergeTags(tags, r);
-    }
-
-    // 尝试 4：translateValues / reviveValues 全开（让 exifr 把原始值转成可读形式）
+    // 尝试 3：明确禁用 makerNote，但开启标准段 + 转换
     if (!isComplete(tags) && buf) {
         const r = await safeParse(exifr, buf, {
             tiff: true,
@@ -215,14 +209,30 @@ export async function readExif(file) {
             makerNote: false,
             userComment: false,
             translateValues: true,
-            reviveValues: true,
-            mergeOutput: true
-        }, '尝试4[translate+revive]');
+            reviveValues: true
+        }, '尝试3[无makerNote+转换]');
         if (r) tags = mergeTags(tags, r);
     }
 
-    // 尝试 5：使用 exifr.gps / exifr.thumbnail 等独立方法以外，
-    //        再用一次完全裸调用（不传 options），最后兜底
+    // 尝试 4：全开解析，包含 XMP 和 makerNote（兜底，可能捕获额外数据）
+    if (!isComplete(tags) && buf) {
+        const r = await safeParse(exifr, buf, {
+            tiff: true,
+            ifd0: true,
+            exif: true,
+            gps: true,
+            interop: true,
+            ifd1: true,
+            xmp: true,            // 新增 XMP 支持
+            makerNote: true,      // 允许但由 try/catch 保护
+            translateValues: true,
+            reviveValues: true,
+            mergeOutput: true
+        }, '尝试4[全开+XMP]');
+        if (r) tags = mergeTags(tags, r);
+    }
+
+    // 尝试 5：空配置再次尝试（某些 exifr 版本行为差异）
     if (!isComplete(tags)) {
         const r = await safeParse(exifr, buf || file, {}, '尝试5[空配置]');
         if (r) tags = mergeTags(tags, r);
@@ -232,63 +242,49 @@ export async function readExif(file) {
     console.log('[EXIF] 合并后的最终 tags 对象:', tags);
     console.log('[EXIF] tags 字段列表:', Object.keys(tags));
 
-    // ---------- 字段提取 ----------
+    // ---------- 字段提取（增加备选标签名） ----------
 
-    // 品牌识别
+    // 品牌
     const rawMake = hasValue(tags.Make) ? String(tags.Make).trim() : '';
-    const brand = detectBrand(rawMake);
 
     // 相机型号
     const rawModel = hasValue(tags.Model) ? String(tags.Model).trim() : '';
-    const model = rawModel ? simplifyCameraModel(rawModel, brand) : '';
 
-    // 焦距
-    let focalNum = toNumber(tags.FocalLength);
-    if (focalNum === null || focalNum === 0) {
-        focalNum = toNumber(tags.FocalLengthIn35mmFormat);
-    }
-    const focal = (focalNum !== null && focalNum > 0) ? String(Math.round(focalNum)) : '';
+    // 焦距：优先 FocalLength，再 FocalLengthIn35mmFormat 等
+    let focalNum = toNumber(tags.FocalLength)
+                || toNumber(tags['FocalLengthIn35mmFormat'])
+                || toNumber(tags['FocalLengthIn35mmFilm']);
 
-    // 光圈
+    // 光圈：FNumber → ApertureValue (APEX) → 其他键
     let fNum = toNumber(tags.FNumber);
-    if (fNum === null || fNum === 0) {
-        // ApertureValue 是 APEX，F = sqrt(2)^Av
+    if ((fNum === null || fNum === 0)) {
         const av = toNumber(tags.ApertureValue);
         if (av !== null && av > 0) {
             fNum = Math.pow(Math.SQRT2, av);
         }
     }
-    const fnumberStr = (fNum !== null && fNum > 0)
-        ? String(Math.round(fNum * 10) / 10)
-        : '';
+    if ((fNum === null || fNum === 0)) {
+        fNum = toNumber(tags['Aperture']) || toNumber(tags['MaxApertureValue']);
+    }
 
-    // 快门
-    let exposureStr = '';
-    let expRaw = tags.ExposureTime;
-    let expNum = toNumber(expRaw);
-    if (expNum === null || expNum === 0) {
-        // ShutterSpeedValue 是 APEX，T = 1 / 2^Tv
+    // 快门：ExposureTime → ShutterSpeedValue (APEX) → 字符串
+    let expNum = toNumber(tags.ExposureTime);
+    if ((expNum === null || expNum === 0)) {
         const tv = toNumber(tags.ShutterSpeedValue);
         if (tv !== null) {
             expNum = 1 / Math.pow(2, tv);
         }
     }
-    if (expNum !== null && expNum > 0) {
-        if (expNum >= 1) {
-            exposureStr = String(Math.round(expNum * 10) / 10).replace(/\.0$/, '');
-        } else {
-            exposureStr = `1/${Math.round(1 / expNum)}`;
-        }
-    } else if (typeof expRaw === 'string' && expRaw.trim() !== '') {
-        exposureStr = expRaw.trim();
+    if ((expNum === null || expNum === 0)) {
+        expNum = toNumber(tags['ExposureTime']) || toNumber(tags['ShutterSpeed']);
     }
 
-    // ISO
-    let isoNum = toNumber(tags.ISO);
-    if (isoNum === null) isoNum = toNumber(tags.ISOSpeedRatings);
-    if (isoNum === null) isoNum = toNumber(tags.PhotographicSensitivity);
-    if (isoNum === null) isoNum = toNumber(tags.RecommendedExposureIndex);
-    const iso = (isoNum !== null && isoNum > 0) ? String(Math.round(isoNum)) : '';
+    // ISO：多个候选字段
+    let isoNum = toNumber(tags.ISO)
+              || toNumber(tags.ISOSpeedRatings)
+              || toNumber(tags.PhotographicSensitivity)
+              || toNumber(tags.RecommendedExposureIndex)
+              || toNumber(tags['ISOSpeed']);
 
     // 时间
     const dt = tags.DateTimeOriginal || tags.DateTime || tags.CreateDate || tags.ModifyDate || null;
@@ -303,25 +299,28 @@ export async function readExif(file) {
     // 方向
     const orientation = toNumber(tags.Orientation) || 1;
 
-    // ---------- 默认值兜底 ----------
+    // ---------- 结果组装（默认值兜底） ----------
     const def = getDefaultExifValues();
-
-    if (!rawMake) console.warn('[EXIF] ✗ Make 字段缺失');
-    if (!rawModel) console.warn('[EXIF] ✗ Model 字段缺失');
-    if (!focal) console.warn('[EXIF] ✗ FocalLength 字段缺失');
-    if (!fnumberStr) console.warn('[EXIF] ✗ FNumber/ApertureValue 字段缺失');
-    if (!exposureStr) console.warn('[EXIF] ✗ ExposureTime/ShutterSpeedValue 字段缺失');
-    if (!iso) console.warn('[EXIF] ✗ ISO 字段缺失');
-
     const result = {
-        brand: brand || def.brand,
+        brand: rawMake ? detectBrand(rawMake) : def.brand,
         rawMake: rawMake || def.rawMake,
-        model: model || def.model,
+        model: rawModel ? simplifyCameraModel(rawModel, rawMake ? detectBrand(rawMake) : def.brand) : def.model,
         rawModel: rawModel || def.rawModel,
-        focal: focal || def.focal,
-        fnumber: fnumberStr || def.fnumber,
-        exposure: exposureStr || def.exposure,
-        iso: iso || def.iso,
+        focal: (focalNum !== null && focalNum > 0) ? String(Math.round(focalNum)) : def.focal,
+        fnumber: (fNum !== null && fNum > 0)
+            ? String(Math.round(fNum * 10) / 10)
+            : def.fnumber,
+        exposure: (() => {
+            if (expNum !== null && expNum > 0) {
+                if (expNum >= 1) return String(Math.round(expNum * 10) / 10).replace(/\.0$/, '');
+                return `1/${Math.round(1 / expNum)}`;
+            }
+            if (typeof tags.ExposureTime === 'string' && tags.ExposureTime.trim() !== '') {
+                return tags.ExposureTime.trim();
+            }
+            return def.exposure;
+        })(),
+        iso: (isoNum !== null && isoNum > 0) ? String(Math.round(isoNum)) : def.iso,
         datetime,
         lens,
         orientation
