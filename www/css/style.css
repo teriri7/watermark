@@ -195,11 +195,12 @@ body {
     position: absolute;
     inset: 0;
     background:
-        radial-gradient(circle at 20% 30%, rgba(122, 162, 110, 0.85), transparent 55%),
-        radial-gradient(circle at 80% 70%, rgba(70, 110, 90, 0.85), transparent 60%),
-        linear-gradient(135deg, #4a6b48 0%, #2f4a3a 100%);
-    filter: blur(4px);
-    transform: scale(1.05);
+        radial-gradient(circle at 20% 30%, rgba(140, 185, 130, 0.90), transparent 50%),
+        radial-gradient(circle at 75% 60%, rgba(90, 140, 100, 0.88), transparent 55%),
+        radial-gradient(circle at 50% 85%, rgba(60, 100, 70, 0.85), transparent 60%),
+        linear-gradient(135deg, #5a7a55 0%, #3a5a42 50%, #2a3d2e 100%);
+    filter: blur(6px);
+    transform: scale(1.12);
 }
 
 .style-thumb-3 .thumb-photo {

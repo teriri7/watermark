@@ -47,8 +47,10 @@ const style3Config = {
     borderScale: 0.055,
     bottomExtraScale: 0.055,
     cornerRadiusScale: 0.05,
-    blurRadiusScale: 0.05,
-    bgZoom: 1.25,
+    // 增强模糊：从 0.05 提升至 0.08
+    blurRadiusScale: 0.08,
+    // 增强模糊：从 1.25 提升至 1.40，提供更多背景素材
+    bgZoom: 1.40,
     shadowOffsetScale: 0.015,
     shadowBlurScale: 0.03,
     shadowAlpha: 150,
@@ -318,8 +320,10 @@ async function renderStyle3(img, exifInfo) {
     canvas.height = canvasH;
     const ctx = canvas.getContext('2d');
 
-    // ---- 背景：先把原图缩到小尺寸再模糊放大 ----
-    const bgSmallMax = 256;
+    // ---- 背景：多级模糊增强 ----
+    // 策略：缩放到中等尺寸 → 分步模糊 → 放大到画布，
+    //       提升模糊质量和边缘过渡自然度
+    const bgSmallMax = 512;  // 从 256 提高到 512，保留更多细节
     let sw, sh;
     if (Math.max(width, height) <= bgSmallMax) {
         sw = width; sh = height;
@@ -340,11 +344,17 @@ async function renderStyle3(img, exifInfo) {
     const targetBlur = Math.min(canvasW, canvasH) * config.blurRadiusScale;
     const smallBlur = Math.max(2.0, targetBlur * Math.min(sw, sh) / Math.min(canvasW, canvasH));
 
-    // 先把原图绘制到画布（带 filter）实现模糊
-    ctx.save();
-    ctx.filter = `blur(${smallBlur}px) brightness(0.78)`;
-    ctx.drawImage(small, 0, 0, canvasW, canvasH);
-    ctx.restore();
+    // 多级模糊：分 3 步叠加，产生更柔和自然的 bokeh 效果
+    const blurSteps = [smallBlur * 0.4, smallBlur * 0.7, smallBlur * 1.0];
+    for (let i = 0; i < blurSteps.length; i++) {
+        const blurPx = blurSteps[i];
+        ctx.save();
+        ctx.filter = (i === blurSteps.length - 1)
+            ? `blur(${blurPx}px) brightness(0.78)`
+            : `blur(${blurPx}px)`;
+        ctx.drawImage(i === 0 ? small : canvas, 0, 0, canvasW, canvasH);
+        ctx.restore();
+    }
 
     // ---- 阴影 + 圆角主图 ----
     const cornerRadius = Math.floor(shortSide * config.cornerRadiusScale);
