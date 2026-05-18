@@ -77,14 +77,10 @@ jobs:
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # 在 </manifest> 标签前添加权限声明
-            sed -i '/<\/manifest>/i \
-      <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\
-      <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
-      <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\
-      <uses-permission android:name="android.permission.CAMERA" />' "$MANIFEST"
+            # 使用 echo 和 sed 组合添加权限
+            echo "添加 Android 权限..."
+            sed -i 's|</manifest>|  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n  <uses-permission android:name="android.permission.CAMERA" />\n</manifest>|' "$MANIFEST"
             echo "✅ Android 权限已添加"
-            cat "$MANIFEST"
           else
             echo "⚠️ AndroidManifest.xml 未找到"
           fi
