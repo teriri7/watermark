@@ -14,7 +14,7 @@ const portraitConfig = {
     lineBottomScale: 0.80,
     lineWidth: 10,
     logoScale: 0.5,
-    brandLogoScales: { canon: 0.5, sony: 0.5, nikon: 0.65 },
+    brandLogoScales: { canon: 0.5, sony: 0.5, nikon: 0.7 },
     logoYOffset: 0,
     modelFontScale: 0.18,
     exifFontScale: 0.16,
