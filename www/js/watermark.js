@@ -462,3 +462,77 @@ export function canvasToBlob(canvas, mime = 'image/jpeg', quality = 0.95) {
         canvas.toBlob((blob) => resolve(blob), mime, quality);
     });
 }
+
+// =========================================================
+// EXIF 注入：从原始文件提取 EXIF 段，注入到输出 JPEG
+// =========================================================
+function findExifSegment(buf) {
+    const view = new DataView(buf);
+    if (view.getUint8(0) !== 0xFF || view.getUint8(1) !== 0xD8) return null;
+
+    let offset = 2;
+    while (offset < view.byteLength - 1) {
+        if (view.getUint8(offset) !== 0xFF) break;
+        const marker = view.getUint8(offset + 1);
+        if (marker === 0xDA) break; // SOS — 图像数据开始
+        if (marker === 0xE1) {
+            const len = view.getUint16(offset + 2);
+            const payloadStart = offset + 4;
+            const payloadLen = len - 2;
+            // 验证 "Exif\0\0" 签名
+            if (payloadLen > 6) {
+                const sig = String.fromCharCode(
+                    view.getUint8(payloadStart),
+                    view.getUint8(payloadStart + 1),
+                    view.getUint8(payloadStart + 2),
+                    view.getUint8(payloadStart + 3)
+                );
+                if (sig === 'Exif') {
+                    return buf.slice(offset, payloadStart + payloadLen);
+                }
+            }
+            offset += 2 + len;
+        } else {
+            if (marker === 0xFF) { offset++; continue; }
+            const len = view.getUint16(offset + 2);
+            offset += 2 + len;
+        }
+    }
+    return null;
+}
+
+export async function injectExif(originalFile, outputBlob) {
+    // 仅对 JPEG 输出且原始文件是 JPEG 时注入
+    if (outputBlob.type !== 'image/jpeg') return outputBlob;
+    if (!originalFile.type.includes('jpeg') && !originalFile.type.includes('jpg')) {
+        const lower = (originalFile.name || '').toLowerCase();
+        if (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg')) return outputBlob;
+    }
+
+    try {
+        const origBuf = await originalFile.arrayBuffer();
+        const exifSeg = findExifSegment(origBuf);
+        if (!exifSeg) {
+            console.log('[EXIF] 原始文件无 EXIF 段，跳过注入');
+            return outputBlob;
+        }
+
+        const outBuf = await outputBlob.arrayBuffer();
+        const outView = new DataView(outBuf);
+        // 验证输出是 JPEG（SOI）
+        if (outView.getUint8(0) !== 0xFF || outView.getUint8(1) !== 0xD8) return outputBlob;
+
+        // 构建新 JPEG：SOI + EXIF + 输出的 SOI 之后内容
+        const parts = [
+            new Uint8Array([0xFF, 0xD8]),  // SOI
+            new Uint8Array(exifSeg),        // EXIF APP1
+            new Uint8Array(outBuf, 2)       // 输出文件去掉 SOI 后的内容
+        ];
+        const result = new Blob(parts, { type: 'image/jpeg' });
+        console.log(`[EXIF] 注入成功: ${outputBlob.size} → ${result.size}`);
+        return result;
+    } catch (e) {
+        console.warn('[EXIF] 注入失败:', e);
+        return outputBlob;
+    }
+}

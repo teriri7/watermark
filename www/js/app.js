@@ -3,7 +3,7 @@
  * 处理 UI 交互和图片水印生成
  */
 
-import { processWatermark, canvasToBlob } from './watermark.js';
+import { processWatermark, canvasToBlob, injectExif } from './watermark.js';
 import { readExif } from './exif-reader.js';
 
 // Capacitor Camera 插件（Android 上绕过 DocumentUI，保留完整 EXIF）
@@ -266,7 +266,16 @@ async function processImage() {
         if (lower.endsWith('.png')) mime = 'image/png';
         else if (lower.endsWith('.webp')) mime = 'image/webp';
 
-        const blob = await canvasToBlob(canvas, mime, 1.0);
+        // JPEG 用 0.93 质量（与相机原片一致，肉眼无损，体积大幅下降）
+        // PNG 质量参数无效，始终无损
+        const quality = mime === 'image/jpeg' ? 0.93 : 1.0;
+        let blob = await canvasToBlob(canvas, mime, quality);
+
+        // JPEG 输出时注入原始 EXIF 数据（保留相机型号、光圈、快门、ISO、镜头、时间等）
+        if (mime === 'image/jpeg') {
+            blob = await injectExif(file, blob);
+        }
+
         latestBlob = blob;
 
         const url = URL.createObjectURL(blob);
